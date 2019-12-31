@@ -3,3 +3,5 @@
 *.tsv
 *.pid
 *.osm
+.vscode
+.gitignore
