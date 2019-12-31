@@ -1,21 +1,32 @@
 # gess
 
 A _ge_nerator for _s_ynthetic _s_treams of financial transactions (ATM withdrawals).
-
+an updated data generator which sends data to a kafka topic specified as an environment variable.
 ## Usage
 
-First, start `gess` like so:
+Example Docker Compose:
+---
+version: '2'
+networks:
+  kafka-net:
+    driver: bridge
 
-    $ ./gess.sh start 
-  
-Then, check if `gess` is working fine:
+ gess:
+   image: pbhalesain/gess
+   container_name: gess
+   networks:
+     - kafka-net
+   depends_on:
+     - kafka
+   environment:
+     - BROKER_LIST=kafka:29092
+     - TOPIC_NAME="test-topic"
 
-    $ ./dummy_gess_sink.sh
+Add the above configuration to your kafka cluster docker compose yml. start the containers, run kafka-console-consumer to read the topic.
+
 
 Once active, `gess` will stream synthetic data about ATM withdrawals, 
-in a line-oriented, JSON-formatted fashion on default port `6900` via UDP 
-(which you can observe as the output of `dummy_gess_sink.sh`):
-
+in a line-oriented, JSON-formatted fashion to a kafka topic on a specified kafka cluster. 
     ...
     {
       'timestamp': '2013-11-08T10:58:19.668225',
@@ -23,7 +34,9 @@ in a line-oriented, JSON-formatted fashion on default port `6900` via UDP
       'lat': '36.7220096',
       'lon': '-4.4186772',
       'amount': 100,
-      'account_id': 'a335',
+      'account_id': '12345678',
+      'id': '1',
+      'gender': 'male',
       'transaction_id': '636adacc-49d2-11e3-a3d1-a820664821e3'
     }
     ...

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 """ 
   The implementation of the synthetic financial transaction stream,
@@ -19,11 +19,25 @@ import uuid
 import csv
 import json
 from time import sleep
+from confluent_kafka import Producer
 
 DEBUG = False
 
-# defines the host for a single gess running
-GESS_IP = "127.0.0.1"
+# defines the brokers where the data needs to sent to.
+BORKER_LIST = os.environ.get('BROKER_LIST')
+if BORKER_LIST is None: 
+  BORKER_LIST = "localhost:9092"
+
+# defines the brokers where the data needs to sent to.
+TOPIC_NAME = os.environ.get('TOPIC_NAME')
+if TOPIC_NAME is None: 
+  TOPIC_NAME = "test-topic"
+# defines delay (seconds) to inject between events
+DELAY = os.environ.get('EVENT_DELAY')
+if DELAY is None: 
+  DELAY = 0.75
+else:
+  DELAY=float(DELAY)
 
 # defines default port for a single gess running
 GESS_UDP_PORT = 6900
@@ -53,15 +67,20 @@ class FinTransSource(object):
 
   def __init__(self, atm_loc_sources):
          #threading.Thread.__init__(self)
+         self.producer = self._producer()
          self.send_port = GESS_UDP_PORT
          self.atm_loc = {}
          for atm_loc in atm_loc_sources:
            self._load_data(atm_loc)
   
+  def _producer(self):
+    producer = Producer({'bootstrap.servers': BORKER_LIST})
+    return producer
+
   # loads the ATM location data from the specified CSV data file
   def _load_data(self, atm_loc_data_file):
     logging.debug('Trying to parse ATM location data file %s' %(atm_loc_data_file))
-    osm_atm_file = open(atm_loc_data_file, 'rb')
+    osm_atm_file = open(atm_loc_data_file, 'rt')
     atm_counter = 0
     try:
       reader = csv.reader(osm_atm_file, delimiter=',')
@@ -86,7 +105,7 @@ class FinTransSource(object):
   #   'transaction_id': '636adacc-49d2-11e3-a3d1-a820664821e3'
   # }
   def _create_fintran(self):
-    rloc = random.choice(self.atm_loc.keys()) # obtain a random ATM location
+    rloc = random.choice(list(self.atm_loc)) # obtain a random ATM location
     lat, lon, atm_label = self.atm_loc[rloc]
     fintran = {
       'timestamp' : str(datetime.datetime.now().isoformat()),
@@ -114,7 +133,7 @@ class FinTransSource(object):
   # Note: the fraudulent transaction will have the same account ID as
   #       the original transaction but different location and ammount.
   def _create_fraudtran(self, fintran):
-    rloc = random.choice(self.atm_loc.keys()) # obtain a random ATM location
+    rloc = random.choice(list(self.atm_loc)) # obtain a random ATM location
     lat, lon, atm_label = self.atm_loc[rloc]
     fraudtran = {
       'timestamp' : str(datetime.datetime.now().isoformat()),
@@ -130,7 +149,9 @@ class FinTransSource(object):
 
   # sends a single financial transaction via UDP
   def _send_fintran(self, out_socket, fintran):
-    out_socket.sendto(str(fintran) + '\n', (GESS_IP, self.send_port))
+    self.producer.produce('test-topic', value=fintran)
+    self.producer.flush(30)
+    #out_socket.sendto(str(fintran.encode)+ '\n', (GESS_IP, self.send_port))
     logging.debug('Sent financial transaction: %s' %fintran)
     
   ############# API ############################################################
